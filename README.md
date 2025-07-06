@@ -50,7 +50,7 @@ pip install -r requirements.txt
 
 
 ### OLED屏幕电量显示效果
-![ESP32实时显示宿舍电量](XSYUDormPowerSpider/img/展示1.png)
+![ESP32实时显示宿舍电量](img/展示1.png)
 
 
 ## 联系方式
