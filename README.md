@@ -23,14 +23,12 @@
 
 ### 爬虫模块
 - 基于Python的`requests`与`BeautifulSoup`实现网页解析
-- 采用`selenium`处理动态登录验证
-- 支持Cookie持久化存储，减少重复登录
 
 
 ### 硬件交互模块
 - 主控芯片：ESP32
 - 编程语言：MicroPython
-- 显示设备：0.96寸OLED屏幕（SSD1306驱动）
+- 显示设备：OLED屏幕
 - 通信方式：Wi-Fi
 
 ## 项目作者
@@ -49,6 +47,10 @@ cd XSYUDormPowerSpider
 
 # 安装Python依赖
 pip install -r requirements.txt
+
+
+### OLED屏幕电量显示效果
+![ESP32实时显示宿舍电量](XSYUDormPowerSpider/img/展示1.png)
 
 
 ## 联系方式
