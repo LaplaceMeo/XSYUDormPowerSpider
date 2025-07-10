@@ -1,0 +1,56 @@
+# 电费监控配置文件
+# 监控设置
+monitor:
+  # 监控时间 (24小时制)
+  schedule_time: "19:00"
+  # 监控间隔 (秒) - 仅在手动模式下使用
+  interval_seconds: 1800
+  # 通知冷却时间 (秒)
+  notification_cooldown_seconds: 3600
+  # 日志设置
+  logging:
+    enabled: true
+    level: "INFO"
+    file: "logs/power_monitor_{date}.log"
+  # 全局电量阈值 (度)
+  global_threshold: 10.0
+
+# 通知设置
+notifications:
+  # Server酱通知
+  server_chan:
+    enabled: true
+    sendkey: "你的Server酱sendkey"
+    url: "https://sctapi.ftqq.com/{sendkey}.send"
+  
+  # 自定义Webhook通知
+  custom_webhook:
+    enabled: false
+    url: "https://your-webhook-url.com/notify"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    template:
+      title: "电量不足提醒"
+      content: "宿舍: {dorm_name}, 电量: {power}度, 阈值: {threshold}度"
+
+# 通知模板
+templates:
+  title: "⚠️ 电量不足提醒 - {dorm_name}"
+  content: |
+    🏠 宿舍: {dorm_name}
+    ⚡ 当前电量: {power} 度
+    🔋 阈值设置: {threshold} 度
+    ⏰ 提醒时间: {time}
+    
+    请及时充值，避免断电！
+    充值链接: https://hydz.xsyu.edu.cn/wxpay/homeinfo.aspx?xid={dorm_id}&type={dorm_type}&opid=a
+
+# 要监控的宿舍列表
+dormitories:
+  - dorm_id: "101640017"
+    dorm_name: "1号楼-101"
+    dorm_type: "1"
+    low_power_threshold: 10.0
+    enabled: true
+    description: "宿舍"
