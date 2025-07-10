@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import subprocess
 import sys
-from database import get_latest_power, get_power_history
+from database import DatabaseManager
 from utils import open_main_app, open_recharge_page
 import platform
 from datetime import datetime
@@ -19,6 +19,9 @@ class PowerWidget:
         self.root.overrideredirect(True)  # 无边框窗口
         self.root.attributes('-topmost', True)  # 窗口置顶
         
+        # 初始化数据库管理器
+        self.db_manager = DatabaseManager()
+
         # 加载配置文件中的宿舍信息
         self.dorm_id, self.dorm_name, self.dorm_type = self.load_config()
         if not self.dorm_id:
@@ -316,15 +319,15 @@ class PowerWidget:
         open_recharge_page(self.dorm_id, self.dorm_type)
 
     def view_power_history(self):
-        """查看电量变化"""
-        # 在主线程中显示图表
-        self.root.after(0, self.show_power_chart)
+        """在新线程中获取并显示电量历史图表"""
+        threading.Thread(target=self.show_power_chart, daemon=True).start()
 
     def show_power_chart(self):
-        """显示电量变化图表"""
-        history = get_power_history(self.dorm_id, 10)
+        """获取数据并创建电量历史图表"""
+        history = self.db_manager.get_records_by_dorm_id(self.dorm_id, limit=30)
+        
         if not history:
-            messagebox.showinfo("提示", "暂无电量历史记录")
+            messagebox.showinfo("无记录", "未找到该宿舍的用电历史记录。")
             return
 
         # 创建图表窗口
@@ -368,32 +371,22 @@ class PowerWidget:
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def update_power(self):
-        """更新电量显示"""
         threading.Thread(target=self.fetch_power, daemon=True).start()
         # 每30分钟更新一次
         self.root.after(1800000, self.update_power)
 
     def fetch_power(self):
-        """获取最新电量"""
-        try:
-            result = get_latest_power(self.dorm_id)
-            if result:
-                power, time_str = result
-                
-                # 检查是否是今天的数据
-                today = datetime.now().strftime('%Y-%m-%d')
-                record_date = time_str.split()[0]
-                
-                # 添加数字动画效果
-                self.root.after(0, self.animate_power_change, power, time_str, record_date == today)
-                # 更新托盘图标
-                self.root.after(0, self.update_tray_icon, power)
-            else:
-                self.root.after(0, self.power_label.config, {"text": "暂无数据"})
-        except Exception as e:
-            print(f"获取电量失败: {e}")
-            self.root.after(0, self.power_label.config, {"text": "获取失败"})
-
+        """获取最新电量数据"""
+        latest_record = self.db_manager.get_records_by_dorm_id(self.dorm_id, limit=1)
+        
+        if latest_record:
+            power, query_time_str = latest_record[0][1], latest_record[0][0]
+            query_time = datetime.strptime(query_time_str, '%Y-%m-%d %H:%M:%S.%f')
+            is_today = query_time.date() == datetime.now().date()
+            self.root.after(0, self.animate_power_change, power, query_time.strftime("%H:%M"), is_today)
+        else:
+            self.root.after(0, self.update_display, "N/A", "无记录", False)
+            
     def animate_power_change(self, target_power, time_str, is_today):
         """电量变化数字动画"""
         try:
@@ -552,6 +545,7 @@ class PowerWidget:
         # 设置标志以停止托盘图标线程
         if self.tray_icon:
             self.tray_icon.stop()
+        self.db_manager.close()
         self.root.destroy()
 
 if __name__ == "__main__":

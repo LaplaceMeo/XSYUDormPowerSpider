@@ -366,12 +366,14 @@ class DormitoryPowerChecker:
 
             
     def on_closing(self):
-        """处理窗口关闭事件，保存配置"""
+        """处理窗口关闭事件，保存配置并关闭数据库连接"""
         # 保存最后的窗口位置和大小
         self.config_manager.set_setting('Window', 'geometry', self.root.winfo_geometry())
         self.config_manager.save_config()
         
+        # db_manager现在是线程安全的，但在主线程退出时最好还是显式关闭一下连接
         self.db_manager.close()
+        
         self.root.destroy()
 
 def main():
