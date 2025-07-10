@@ -20,6 +20,7 @@ class ConfigManager:
         """创建默认的配置文件"""
         self.config['Theme'] = {'current_theme': 'litera'}
         self.config['Window'] = {'geometry': '900x800'}
+        self.config['Widget'] = {'style': '默认'}
         self.save_config()
 
     def get_setting(self, section, option, fallback=None):

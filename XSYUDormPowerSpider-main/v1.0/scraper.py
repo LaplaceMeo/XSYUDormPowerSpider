@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import re
+from datetime import datetime
 
 class Scraper:
     def get_power(self, dorm_id, dorm_type):
@@ -38,4 +39,45 @@ class Scraper:
         except requests.exceptions.RequestException as e:
             return None, f"网络错误：无法连接到电量查询服务器。({e})"
         except Exception as e:
-            return None, f"未知错误：{e}" 
+            return None, f"未知错误：{e}"
+
+    def get_historical_power(self, dorm_id, dorm_type):
+        url = f"https://hydz.xsyu.edu.cn/wxpay/settlementlist.aspx?type={dorm_type}&xid={dorm_id}"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            records = []
+            
+            data_texts = soup.stripped_strings
+            data_list = list(data_texts)
+
+            power_indices = [i for i, x in enumerate(data_list) if x == "剩余电量"]
+            time_indices = [i for i, x in enumerate(data_list) if x == "抄表时间"]
+
+            for i in range(min(len(power_indices), len(time_indices))):
+                power_index = power_indices[i] + 1
+                time_index = time_indices[i] + 1
+                if power_index < len(data_list) and time_index < len(data_list):
+                    power_str = data_list[power_index]
+                    time_str = data_list[time_index]
+                    
+                    try:
+                        power_val = float(power_str)
+                        # Keep the full datetime object, do not convert to date
+                        datetime_val = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+                        records.append((datetime_val, power_val))
+                    except (ValueError, TypeError):
+                        continue
+
+            if not records:
+                return [], "在页面上找到了数据，但解析失败。页面结构可能已更新。"
+
+            # Return the raw records, sorted ascending by time
+            return sorted(records, key=lambda x: x[0]), None
+
+        except requests.exceptions.RequestException as e:
+            return [], f"网络请求失败: {e}"
+        except Exception as e:
+            return [], f"处理数据时发生未知错误: {e}" 
