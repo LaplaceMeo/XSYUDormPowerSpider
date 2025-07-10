@@ -103,6 +103,11 @@ pip install -r requirements.txt
 ##
 欢迎大家Fork本项目
 
+# 鸣谢
+
+非常感谢黄少政学长（QQ: 158482852）的支持与鼓励，更新并且完善了本项目的UI设计以及功能改进
+非常感谢dr1am1(QQ: 376742095)对本项目的支持，提供了Linux自动化部署版本
+
 ## 许可证
 
 MIT License
