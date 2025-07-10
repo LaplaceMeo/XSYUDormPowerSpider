@@ -60,16 +60,28 @@ class DatabaseManager:
             return True
         return False
 
-    def get_records_by_dorm_id(self, dorm_id, limit=30):
-        """根据宿舍ID获取历史记录"""
+    def get_records_by_dorm_id(self, dorm_id, start_date=None, end_date=None):
+        """根据宿舍ID和可选的日期范围获取历史记录"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
+        
+        query = '''
             SELECT query_time, power FROM electricity_records
             WHERE dorm_id = ?
-            ORDER BY query_time DESC
-            LIMIT ?
-        ''', (dorm_id, limit))
+        '''
+        params = [dorm_id]
+
+        if start_date:
+            query += ' AND DATE(query_time) >= ?'
+            params.append(start_date)
+        
+        if end_date:
+            query += ' AND DATE(query_time) <= ?'
+            params.append(end_date)
+            
+        query += ' ORDER BY query_time ASC' # 按时间升序排列，方便绘图
+
+        cursor.execute(query, tuple(params))
         return cursor.fetchall()
 
     def close(self):

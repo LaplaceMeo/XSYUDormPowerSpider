@@ -11,7 +11,9 @@ from utils import open_main_app, open_recharge_page
 import platform
 from datetime import datetime
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
+
+from config import ConfigManager
 
 class PowerWidget:
     def __init__(self, root):
@@ -19,10 +21,12 @@ class PowerWidget:
         self.root.overrideredirect(True)  # 无边框窗口
         self.root.attributes('-topmost', True)  # 窗口置顶
         
-        # 初始化数据库管理器
+        # 初始化管理器
         self.db_manager = DatabaseManager()
+        self.config_manager = ConfigManager()
 
-        # 加载配置文件中的宿舍信息
+        # 读取配置
+        self.widget_style = self.config_manager.get_setting('Widget', 'style', '默认')
         self.dorm_id, self.dorm_name, self.dorm_type = self.load_config()
         if not self.dorm_id:
             messagebox.showerror("错误", "未找到已选择的宿舍信息")
@@ -41,6 +45,9 @@ class PowerWidget:
         y_position = screen_height - widget_height - 40  # 距离底部40像素
         self.root.geometry(f"{widget_width}x{widget_height}+{x_position}+{y_position}")
         
+        # 定义颜色主题
+        self.setup_colors()
+
         # 创建UI元素
         self.create_ui_elements()
 
@@ -84,6 +91,29 @@ class PowerWidget:
             print(f"加载配置文件失败: {e}")
             return None, None, None
 
+    def setup_colors(self):
+        """根据风格设置颜色主题"""
+        if self.widget_style == '猫娘':
+            self.colors = {
+                'bg': '#FFEFF5',       # 淡粉色背景
+                'fg': '#6D4A5A',       # 深粉色文字
+                'low': '#FF7A9E',      # 低电量红色
+                'medium': '#FFB6C1',   # 中电量浅粉
+                'high': '#FF87AB',     # 高电量亮粉
+                'outline': '#FFC0CB',  # 边框粉色
+                'icon': '#FFFFFF'      # 图标白色
+            }
+        else: # 默认风格
+            self.colors = {
+                'bg': '#FFFFFF',       # 白色背景
+                'fg': '#333333',       # 深灰色文字
+                'low': '#e06666',      # 低电量红色
+                'medium': '#f6b26b',   # 中电量橙色
+                'high': '#4a86e8',     # 高电量蓝色
+                'outline': '#dddddd',  # 边框灰色
+                'icon': '#4a86e8'      # 图标蓝色
+            }
+
     def setup_transparency(self):
         """根据不同平台设置窗口透明度"""
         current_platform = platform.system()
@@ -125,13 +155,16 @@ class PowerWidget:
             self.root, 
             width=180, 
             height=120, 
-            bg="#f0f0f0", 
+            bg="#f0f0f0", # 这个颜色会被下面的透明设置覆盖
             highlightthickness=0
         )
         self.canvas.pack(fill=tk.BOTH, expand=True)
         
         # 创建圆角背景
         self.create_rounded_background()
+
+        if self.widget_style == '猫娘':
+            self.create_cat_ears()
         
         # 添加电量图标
         self.create_power_icon()
@@ -140,9 +173,9 @@ class PowerWidget:
         self.name_label = tk.Label(
             self.canvas, 
             text=self.dorm_name, 
-            bg="white", 
+            bg=self.colors['bg'], 
             font=("微软雅黑", 10, "bold"),
-            fg="#555555"
+            fg=self.colors['fg']
         )
         self.name_label_window = self.canvas.create_window(
             90, 20, 
@@ -153,9 +186,9 @@ class PowerWidget:
         self.power_label = tk.Label(
             self.canvas, 
             text="加载中...", 
-            bg="white", 
+            bg=self.colors['bg'], 
             font=("微软雅黑", 28, "bold"),
-            fg="#333333"
+            fg=self.colors['fg']
         )
         self.power_label_window = self.canvas.create_window(
             90, 60, 
@@ -166,9 +199,9 @@ class PowerWidget:
         self.time_label = tk.Label(
             self.canvas, 
             text="", 
-            bg="white", 
+            bg=self.colors['bg'], 
             font=("微软雅黑", 8),
-            fg="#888888"
+            fg=self.colors['fg']
         )
         self.time_label_window = self.canvas.create_window(
             90, 95, 
@@ -188,8 +221,8 @@ class PowerWidget:
         # 创建主背景
         self.rounded_rect = self.canvas.create_polygon(
             points, 
-            fill="white", 
-            outline="#dddddd", 
+            fill=self.colors['bg'], 
+            outline=self.colors['outline'], 
             width=1
         )
         
@@ -209,6 +242,23 @@ class PowerWidget:
             state="hidden"
         )
 
+    def create_cat_ears(self):
+        """在背景上画猫耳朵"""
+        # 左耳
+        self.canvas.create_polygon(
+            15, 20, 45, 5, 45, 25, 
+            fill=self.colors['bg'], 
+            outline=self.colors['outline'], 
+            width=1
+        )
+        # 右耳
+        self.canvas.create_polygon(
+            165, 20, 135, 5, 135, 25, 
+            fill=self.colors['bg'], 
+            outline=self.colors['outline'], 
+            width=1
+        )
+
     def create_power_icon(self):
         """创建电量图标"""
         # 图标坐标
@@ -216,17 +266,30 @@ class PowerWidget:
         icon_y = 60
         icon_size = 15
         
-        points = [
-            icon_x, icon_y - icon_size,
-            icon_x + icon_size/2, icon_y,
-            icon_x, icon_y + icon_size,
-            icon_x - icon_size/2, icon_y
-        ]
+        if self.widget_style == '猫娘':
+            # 猫娘风格用爱心图标
+            points = [
+                icon_x, icon_y,
+                icon_x + icon_size/4, icon_y - icon_size/2,
+                icon_x + icon_size/2, icon_y - icon_size/3,
+                icon_x + icon_size/4, icon_y,
+                icon_x, icon_y + icon_size/2,
+                icon_x - icon_size/4, icon_y,
+                icon_x - icon_size/2, icon_y - icon_size/3,
+                icon_x - icon_size/4, icon_y - icon_size/2,
+            ]
+        else: # 默认风格用闪电图标
+            points = [
+                icon_x, icon_y - icon_size,
+                icon_x + icon_size/2, icon_y,
+                icon_x, icon_y + icon_size,
+                icon_x - icon_size/2, icon_y
+            ]
         
         self.power_icon = self.canvas.create_polygon(
             points, 
-            fill="#4a86e8", 
-            outline="#3a76d8", 
+            fill=self.colors['icon'],
+            outline=self.colors['outline'],
             width=1
         )
 
@@ -319,57 +382,14 @@ class PowerWidget:
         open_recharge_page(self.dorm_id, self.dorm_type)
 
     def view_power_history(self):
-        """在新线程中获取并显示电量历史图表"""
-        threading.Thread(target=self.show_power_chart, daemon=True).start()
+        """打开主程序来查看历史记录"""
+        messagebox.showinfo("查看历史", "将为您打开主程序以查看详细历史记录。", parent=self.root)
+        open_main_app()
 
     def show_power_chart(self):
-        """获取数据并创建电量历史图表"""
-        history = self.db_manager.get_records_by_dorm_id(self.dorm_id, limit=30)
+        """获取数据并创建电量历史图表 (此方法已废弃，功能移至主程序)"""
+        pass
         
-        if not history:
-            messagebox.showinfo("无记录", "未找到该宿舍的用电历史记录。")
-            return
-
-        # 创建图表窗口
-        chart_window = tk.Toplevel(self.root)
-        chart_window.title(f"{self.dorm_name} 电量变化")
-        chart_window.geometry("600x400")
-        chart_window.configure(bg="white")
-
-        # 准备数据
-        powers = [record[0] for record in reversed(history)]
-        times = [record[1].split()[1][:5] for record in reversed(history)]
-
-        # 创建图表
-        plt.switch_backend('TkAgg')  # 确保使用Tkinter后端
-        fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
-        
-        # 设置图表样式
-        ax.set_facecolor('#f9f9f9')
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        
-        # 绘制电量曲线
-        line, = ax.plot(times, powers, 'o-', color='#4a86e8', linewidth=2.5)
-        
-        # 设置标题和标签
-        ax.set_title(f"{self.dorm_name} 电量变化趋势", fontsize=14, pad=10)
-        ax.set_xlabel("时间", fontsize=12, labelpad=5)
-        ax.set_ylabel("电量 (度)", fontsize=12, labelpad=5)
-        
-        # 添加网格
-        ax.grid(True, linestyle='--', alpha=0.7, color='#dddddd')
-        
-        # 在图表上显示数值
-        for x, y in zip(times, powers):
-            ax.annotate(f'{y}', (x, y), textcoords="offset points", 
-                        xytext=(0,10), ha='center', fontsize=10)
-
-        # 将图表嵌入Tkinter窗口
-        canvas = FigureCanvasTkAgg(fig, master=chart_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
     def update_power(self):
         threading.Thread(target=self.fetch_power, daemon=True).start()
         # 每30分钟更新一次
@@ -380,61 +400,91 @@ class PowerWidget:
         latest_record = self.db_manager.get_records_by_dorm_id(self.dorm_id, limit=1)
         
         if latest_record:
-            power, query_time_str = latest_record[0][1], latest_record[0][0]
-            query_time = datetime.strptime(query_time_str, '%Y-%m-%d %H:%M:%S.%f')
+            power_val, time_val = latest_record[0][1], latest_record[0][0]
+            query_time = datetime.strptime(time_val, '%Y-%m-%d %H:%M:%S.%f')
             is_today = query_time.date() == datetime.now().date()
-            self.root.after(0, self.animate_power_change, power, query_time.strftime("%H:%M"), is_today)
+            # 传递标准时间字符串给动画函数
+            self.root.after(0, self.animate_power_change, power_val, query_time.strftime("%H:%M"), is_today)
         else:
             self.root.after(0, self.update_display, "N/A", "无记录", False)
             
     def animate_power_change(self, target_power, time_str, is_today):
-        """电量变化数字动画"""
         try:
-            current_text = self.power_label.cget("text")
-            current_power = float(current_text.split()[0]) if current_text != "加载中..." and current_text != "暂无数据" and current_text != "获取失败" else target_power
-            
-            steps = 20
-            delta = (target_power - current_power) / steps
-            
-            def update_step(step):
-                if step <= steps:
-                    current = current_power + delta * step
-                    self.power_label.config(text=f"{current:.1f} 度")
-                    self.root.after(20, update_step, step + 1)
-                else:
-                    self.power_label.config(text=f"{target_power} 度")
-                    self.update_display(target_power, time_str, is_today)
-            
-            update_step(1)
-        except Exception as e:
-            print(f"电量动画失败: {e}")
+            current_power_str = self.power_label.cget("text")
+            start_power = float(current_power_str) if current_power_str not in ["加载中...", "N/A"] else 0.0
+        except (ValueError, tk.TclError):
+            start_power = 0.0
+
+        steps = 20
+        # 如果起始和目标电量相同，则不执行动画
+        if abs(target_power - start_power) < 0.01:
             self.update_display(target_power, time_str, is_today)
+            return
+            
+        delta = (target_power - start_power) / steps
+
+        def update_step(step):
+            current_power = start_power + delta * step
+            self.power_label.config(text=f"{current_power:.2f}")
+            if step < steps:
+                self.root.after(20, update_step, step + 1)
+            else:
+                self.update_display(target_power, time_str, is_today)
+
+        update_step(1) # 从第1步开始以避免重复设置起始值
 
     def update_display(self, power, time_str, is_today):
-        """更新显示内容"""
-        # 根据电量设置颜色
-        if power < 10:
-            self.power_label.config(fg="red")
-            # 低电量时图标变红
-            self.canvas.itemconfig(self.power_icon, fill="#e64942", outline="#d63932")
-        elif power < 30:
-            self.power_label.config(fg="orange")
-            # 中等电量时图标变黄
-            self.canvas.itemconfig(self.power_icon, fill="#f6b26b", outline="#e6a25b")
+        """更新最终的显示状态（增加健壮性）"""
+        # --- 防御性编程：确保数据类型正确 ---
+        try:
+            # 确保 power 是浮点数或 "N/A"
+            if isinstance(power, str) and power != "N/A":
+                power = float(power)
+        except (ValueError, TypeError):
+            power = "Error" # 如果转换失败，显示错误
+
+        # 确保 time_str 是字符串
+        time_str = str(time_str)
+        # --- 防御性编程结束 ---
+
+        # 更新电量
+        if isinstance(power, (int, float)):
+            self.power_label.config(text=f"{power:.2f}")
         else:
-            self.power_label.config(fg="#333333")
-            # 高电量时图标变蓝
-            self.canvas.itemconfig(self.power_icon, fill="#4a86e8", outline="#3a76d8")
-            
-        # 更新时间标签
-        time_text = f"更新于: {time_str.split()[1][:5]}"
-        if not is_today:
-            time_text += " (非今日数据)"
-            
+            self.power_label.config(text=str(power))
+
+        # 更新时间
+        if ":" in time_str: # 只有包含冒号的才认为是有效时间字符串
+            time_text = f"更新于: {time_str}"
+        else:
+            time_text = time_str # 直接显示 "无记录" 等
         self.time_label.config(text=time_text)
+        
+        # 根据电量和是否今天更新过，改变颜色
+        if isinstance(power, (int, float)):
+            if power < 20:
+                color = self.colors['low']
+            elif power < 50:
+                color = self.colors['medium']
+            else:
+                color = self.colors['high']
+        else:
+            color = self.colors['fg'] # 默认颜色
+
+        self.power_label.config(fg=color)
+
+        # 更新图标颜色
+        if self.widget_style != '猫娘': # 猫娘风格图标颜色固定
+            if isinstance(power, (int, float)):
+                if power < 10:
+                    self.canvas.itemconfig(self.power_icon, fill="#e64942", outline="#d63932")
+                elif power < 30:
+                    self.canvas.itemconfig(self.power_icon, fill="#f6b26b", outline="#e6a25b")
+                else:
+                    self.canvas.itemconfig(self.power_icon, fill="#4a86e8", outline="#3a76d8")
 
     def animate_in(self):
-        """初始动画效果"""
+        """窗口出现动画"""
         # 淡入效果
         self.root.attributes('-alpha', 0.0)
         for i in range(10):

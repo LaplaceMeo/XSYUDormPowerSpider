@@ -16,10 +16,13 @@ from datetime import datetime  # 显式导入datetime类
 import os
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
+from ttkbootstrap.scrolled import ScrolledText
+from ttkbootstrap.widgets import DateEntry
 from thefuzz import process
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.dates as mdates
+from datetime import timedelta # 导入timedelta
 
 from database import DatabaseManager
 from scraper import Scraper
@@ -112,7 +115,14 @@ class DormitoryPowerChecker:
 
         self.search_entry = ttk.Entry(search_frame, font=("微软雅黑", 12), width=50)
         self.search_entry.pack(side=LEFT, fill=X, expand=YES)
+        
+        self.placeholder_text = "输入宿舍楼-房间号，如11-123"
+        self.search_entry.insert(0, self.placeholder_text)
+        self.search_entry.config(foreground="grey")
+
         self.search_entry.bind("<KeyRelease>", self.on_search)
+        self.search_entry.bind("<FocusIn>", self.on_entry_focus_in)
+        self.search_entry.bind("<FocusOut>", self.on_entry_focus_out)
 
         result_frame = ttk.LabelFrame(main_frame, text="搜索结果", padding="10", bootstyle="info")
         result_frame.pack(fill=BOTH, expand=YES, pady=10)
@@ -147,19 +157,19 @@ class DormitoryPowerChecker:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=X, pady=10)
 
-        self.query_button = ttk.Button(button_frame, text="查询电量", command=self.query_power, state=DISABLED, bootstyle="success")
+        self.query_button = ttk.Button(button_frame, text="🔍 查询电量", command=self.query_power, state=DISABLED, bootstyle="success")
         self.query_button.pack(side=LEFT, padx=5, ipady=5)
 
-        self.recharge_button = ttk.Button(button_frame, text="前往充值", command=self.recharge_dormitory, state=DISABLED, bootstyle="info")
+        self.recharge_button = ttk.Button(button_frame, text="💳 前往充值", command=self.recharge_dormitory, state=DISABLED, bootstyle="info")
         self.recharge_button.pack(side=LEFT, padx=5, ipady=5)
         
-        self.create_widget_button = ttk.Button(button_frame, text="创建桌面小摆件", command=self.create_desktop_widget, state=DISABLED, bootstyle="warning")
+        self.create_widget_button = ttk.Button(button_frame, text="🐱 创建摆件", command=self.create_desktop_widget, state=DISABLED, bootstyle="warning")
         self.create_widget_button.pack(side=LEFT, padx=5, ipady=5)
 
-        self.history_button = ttk.Button(button_frame, text="查看历史用电", command=self.show_history_graph, state=DISABLED, bootstyle="secondary")
+        self.history_button = ttk.Button(button_frame, text="📊 查看历史", command=self.show_history_graph, state=DISABLED, bootstyle="secondary")
         self.history_button.pack(side=LEFT, padx=5, ipady=5)
 
-        clear_button = ttk.Button(button_frame, text="清空", command=self.clear_all, bootstyle="danger")
+        clear_button = ttk.Button(button_frame, text="🗑️ 清空", command=self.clear_all, bootstyle="danger")
         clear_button.pack(side=RIGHT, padx=5, ipady=5)
 
     def create_menu(self):
@@ -177,6 +187,30 @@ class DormitoryPowerChecker:
         for theme_name in themes:
             theme_menu.add_command(label=theme_name, command=lambda t=theme_name: self.change_theme(t))
 
+        widget_style_menu = ttk.Menu(menu_bar, tearoff=False)
+        menu_bar.add_cascade(label="摆件风格", menu=widget_style_menu)
+        
+        styles = ['默认', '猫娘']
+        for style_name in styles:
+            widget_style_menu.add_command(label=style_name, command=lambda s=style_name: self.set_widget_style(s))
+
+    def set_widget_style(self, style_name):
+        """保存小摆件的风格"""
+        self.config_manager.set_setting('Widget', 'style', style_name)
+        messagebox.showinfo("设置成功", f"桌面摆件风格已设置为: {style_name}\n\n下次创建摆件时将生效。", parent=self.root)
+
+    def on_entry_focus_in(self, event):
+        """当输入框获得焦点时"""
+        if self.search_entry.get() == self.placeholder_text:
+            self.search_entry.delete(0, "end")
+            self.search_entry.config(foreground=self.style.colors.get('fg'))
+
+    def on_entry_focus_out(self, event):
+        """当输入框失去焦点时"""
+        if not self.search_entry.get():
+            self.search_entry.insert(0, self.placeholder_text)
+            self.search_entry.config(foreground="grey")
+
     def change_theme(self, theme_name):
         """切换并保存主题"""
         self.style.theme_use(theme_name)
@@ -188,7 +222,7 @@ class DormitoryPowerChecker:
             self.result_tree.delete(item)
 
         search_text = self.search_entry.get().strip()
-        if not search_text:
+        if not search_text or search_text == self.placeholder_text:
             self.query_button.config(state=DISABLED)
             self.recharge_button.config(state=DISABLED)
             self.create_widget_button.config(state=DISABLED)
@@ -294,6 +328,7 @@ class DormitoryPowerChecker:
         self.recharge_button.config(state=DISABLED)
         self.create_widget_button.config(state=DISABLED)
         self.history_button.config(state=DISABLED)
+        self.on_entry_focus_out(None) # 恢复占位符
 
     def create_desktop_widget(self):
         """创建并启动桌面小摆件"""
@@ -329,41 +364,84 @@ class DormitoryPowerChecker:
         values = self.result_tree.item(item, "values")
         dorm_name, dorm_id = values[:2]
 
-        records = self.db_manager.get_records_by_dorm_id(dorm_id, limit=30)
-
-        if not records:
-            messagebox.showinfo("无历史数据", f"未找到宿舍 {dorm_name} 的历史用电数据。")
-            return
-
         # 创建新窗口用于显示图表
         graph_window = tk.Toplevel(self.root)
         graph_window.title(f"{dorm_name} - 用电历史")
-        graph_window.geometry("800x600")
+        graph_window.geometry("850x700")
 
-        # 数据处理
-        dates = [datetime.strptime(rec[0], '%Y-%m-%d %H:%M:%S.%f') for rec in records]
-        power_values = [rec[1] for rec in records]
+        # --- Date Entry Frame ---
+        date_frame = ttk.Frame(graph_window, padding=10)
+        date_frame.pack(fill=X)
 
-        # 创建图表
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(dates, power_values, marker='o', linestyle='-')
+        ttk.Label(date_frame, text="开始日期:").pack(side=LEFT, padx=(0, 5))
+        start_date_entry = DateEntry(date_frame, bootstyle="primary")
+        start_date_entry.pack(side=LEFT, padx=(0, 20))
+
+        ttk.Label(date_frame, text="结束日期:").pack(side=LEFT, padx=(0, 5))
+        end_date_entry = DateEntry(date_frame, bootstyle="primary")
+        end_date_entry.pack(side=LEFT, padx=(0, 20))
         
-        # 美化图表
-        ax.set_title(f'{dorm_name} 最近30天用电趋势', fontsize=16)
-        ax.set_xlabel('日期', fontsize=12)
-        ax.set_ylabel('剩余电量 (度)', fontsize=12)
-        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
-        
-        # 格式化X轴日期显示
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=5)) # 每5天显示一个刻度
-        fig.autofmt_xdate() # 自动旋转日期标签
+        # --- Chart Frame ---
+        chart_frame = ttk.Frame(graph_window)
+        chart_frame.pack(fill=BOTH, expand=YES)
+        fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+        canvas = FigureCanvasTkAgg(fig, master=chart_frame)
+        canvas.get_tk_widget().pack(fill=BOTH, expand=YES)
 
-        # 将图表嵌入到Tkinter窗口
-        canvas = FigureCanvasTkAgg(fig, master=graph_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        def draw_chart(dorm_id, start_date=None, end_date=None):
+            records = self.db_manager.get_records_by_dorm_id(dorm_id, start_date, end_date)
+            
+            ax.clear() # 清除旧图表
 
+            if not records:
+                ax.text(0.5, 0.5, '该时间范围内无数据', horizontalalignment='center', verticalalignment='center', fontsize=16)
+                ax.set_title(f'{dorm_name} - 无历史数据')
+                canvas.draw()
+                return
+
+            dates = [datetime.strptime(rec[0], '%Y-%m-%d %H:%M:%S.%f') for rec in records]
+            power_values = [rec[1] for rec in records]
+            
+            # 尝试设置中文字体和绘图风格
+            try:
+                plt.style.use('seaborn-v0_8-darkgrid')
+                plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
+                plt.rcParams['axes.unicode_minus'] = False
+            except Exception as e:
+                print(f"设置matplotlib风格失败: {e}")
+
+            # 创建图表
+            ax.plot(dates, power_values, marker='o', linestyle='-')
+            ax.set_title(f'{dorm_name} 最近 {len(dates)} 天用电趋势', fontsize=16)
+
+            ax.set_xlabel('日期', fontsize=12)
+            ax.set_ylabel('剩余电量 (度)', fontsize=12)
+            fig.autofmt_xdate(rotation=45)
+            ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+            # 格式化X轴日期显示
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+            canvas.draw()
+
+        query_button = ttk.Button(
+            date_frame, 
+            text="查询", 
+            bootstyle="success", 
+            command=lambda: draw_chart(
+                dorm_id, 
+                start_date_entry.entry.get(),
+                end_date_entry.entry.get()
+            )
+        )
+        query_button.pack(side=LEFT)
+
+        # 首次加载时绘制最近30天的数据
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        start_date_entry.entry.delete(0, tk.END)
+        start_date_entry.entry.insert(0, thirty_days_ago)
+        draw_chart(dorm_id, start_date=thirty_days_ago, end_date=datetime.now().strftime('%Y-%m-%d'))
             
     def on_closing(self):
         """处理窗口关闭事件，保存配置并关闭数据库连接"""
