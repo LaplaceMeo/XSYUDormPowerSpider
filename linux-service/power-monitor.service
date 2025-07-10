@@ -1,0 +1,25 @@
+[Unit]
+Description=Power Monitor Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=power-monitor
+Group=power-monitor
+WorkingDirectory=/opt/power-monitor
+ExecStart=/usr/bin/python3 /opt/power-monitor/power_monitor_service.py --config /opt/power-monitor/config.yaml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/power-monitor/logs
+
+[Install]
+WantedBy=multi-user.target 
