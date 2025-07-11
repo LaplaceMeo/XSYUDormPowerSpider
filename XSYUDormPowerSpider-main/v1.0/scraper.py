@@ -4,6 +4,13 @@ import re
 from datetime import datetime
 
 class Scraper:
+    def __init__(self):
+        # 增加 User-Agent，模拟浏览器访问，这是解决问题的关键
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        self.session = requests.Session()
+
     def get_power(self, dorm_id, dorm_type):
         """
         根据宿舍ID和类型，爬取剩余电量。
@@ -42,42 +49,43 @@ class Scraper:
             return None, f"未知错误：{e}"
 
     def get_historical_power(self, dorm_id, dorm_type):
-        url = f"https://hydz.xsyu.edu.cn/wxpay/settlementlist.aspx?type={dorm_type}&xid={dorm_id}"
+        """
+        从官方接口获取详细的历史电量记录。
+        此版本使用 stripped_strings 进行解析，更加健壮。
+        """
+        history_url = f"https://hydz.xsyu.edu.cn/wxpay/settlementlist.aspx?type={dorm_type}&xid={dorm_id}"
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(history_url, headers=self.headers, timeout=15)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
 
             records = []
-            
-            data_texts = soup.stripped_strings
-            data_list = list(data_texts)
+            # 使用 stripped_strings 获取页面所有纯文本内容，并转换为列表
+            strings = list(soup.stripped_strings)
 
-            power_indices = [i for i, x in enumerate(data_list) if x == "剩余电量"]
-            time_indices = [i for i, x in enumerate(data_list) if x == "抄表时间"]
-
-            for i in range(min(len(power_indices), len(time_indices))):
-                power_index = power_indices[i] + 1
-                time_index = time_indices[i] + 1
-                if power_index < len(data_list) and time_index < len(data_list):
-                    power_str = data_list[power_index]
-                    time_str = data_list[time_index]
+            # 遍历列表，寻找"剩余电量"和"抄表时间"的组合
+            for i, text in enumerate(strings):
+                if text == '剩余电量' and i + 2 < len(strings) and strings[i+2] == '抄表时间':
+                    power_str = strings[i+1]
+                    time_str = strings[i+3]
                     
                     try:
                         power_val = float(power_str)
-                        # Keep the full datetime object, do not convert to date
-                        datetime_val = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
-                        records.append((datetime_val, power_val))
+                        time_obj = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+                        # 转换为与之前逻辑一致的ISO格式字符串
+                        records.append((time_obj.isoformat(), power_val))
                     except (ValueError, TypeError):
+                        # 如果某个记录解析失败，则跳过，继续解析下一个
                         continue
-
+            
             if not records:
-                return [], "在页面上找到了数据，但解析失败。页面结构可能已更新。"
+                return None, "在官方页面未找到任何有效的历史数据记录。"
 
-            # Return the raw records, sorted ascending by time
-            return sorted(records, key=lambda x: x[0]), None
+            # 按时间升序排序
+            records.sort(key=lambda x: x[0])
+            return records, None
 
         except requests.exceptions.RequestException as e:
-            return [], f"网络请求失败: {e}"
+            return None, f"获取历史数据时网络请求失败: {e}"
         except Exception as e:
-            return [], f"处理数据时发生未知错误: {e}" 
+            return None, f"解析历史数据时发生未知错误: {e}" 

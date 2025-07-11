@@ -1,0 +1,9 @@
+2025-07-11 13:20:06.663871: Traceback (most recent call last):
+  File "H:\XSYUDormPowerSpider-main\XSYUDormPowerSpider-main\v1.0\main_app.py", line 466, in main
+    app = DormitoryPowerChecker(root)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "H:\XSYUDormPowerSpider-main\XSYUDormPowerSpider-main\v1.0\main_app.py", line 259, in __init__
+    self.username_entry.insert(0, saved_username)
+    ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'DormitoryPowerChecker' object has no attribute 'username_entry'
+
