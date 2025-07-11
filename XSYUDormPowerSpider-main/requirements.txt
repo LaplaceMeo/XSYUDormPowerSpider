@@ -1,0 +1,9 @@
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+matplotlib>=3.8.0
+pandas>=2.1.0
+ttkbootstrap>=1.14.0
+thefuzz[speedup]>=0.22.1
+pystray>=0.19.5
+Pillow>=10.1.0
+configparser>=5.3.0
